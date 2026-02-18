@@ -455,7 +455,7 @@ bot.onText(/\/peso (.+)/, async (msg, match) => {
   }
 
   await Weight.create({ telegramId: chatId, peso });
-  await User.findOneAndUpdate({ telegramId: chatId }, { peso });
+  await User.findOneAndUpdate({ telegramId: chatId }, { peso }, { upsert: true });
 
   const weights = await Weight.find({ telegramId: chatId }).sort({ fecha: -1 }).limit(5);
   let historial = weights.map(w => 
@@ -866,7 +866,8 @@ bot.on('message', async (msg) => {
               metaProteinas: state.metaProteinas,
               metaCarbohidratos: state.metaCarbohidratos,
               metaGrasas: metaGrasa
-            }
+            },
+            { upsert: true }
           );
           delete userStates[chatId];
           bot.sendMessage(chatId, `✅ Metas configuradas:
@@ -883,7 +884,7 @@ bot.on('message', async (msg) => {
         const pesoReg = parseFloat(text);
         if (!isNaN(pesoReg)) {
           await Weight.create({ telegramId: chatId, peso: pesoReg });
-          await User.findOneAndUpdate({ telegramId: chatId }, { peso: pesoReg });
+          await User.findOneAndUpdate({ telegramId: chatId }, { peso: pesoReg }, { upsert: true });
           delete userStates[chatId];
           bot.sendMessage(chatId, `✅ Peso registrado: ${pesoReg} kg`);
         } else {
@@ -1179,7 +1180,8 @@ bot.on('callback_query', async (query) => {
           metaProteinas,
           metaCarbohidratos,
           metaGrasas
-        }
+        },
+        { upsert: true }
       );
 
       delete userStates[chatId];
