@@ -14,6 +14,11 @@ const userSchema = new mongoose.Schema({
   metaProteinas: Number,
   metaCarbohidratos: Number,
   metaGrasas: Number,
+  pesoMeta: Number,
+  nivelDeficit: String,
+  planFinde: Boolean,
+  metaCaloriasLV: Number,
+  metaCaloriasFinde: Number,
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
 });

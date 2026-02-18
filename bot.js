@@ -33,6 +33,15 @@ function getEndOfDay(date = new Date()) {
   return d;
 }
 
+function getMetaDelDia(user) {
+  if (!user) return 2000;
+  if (user.planFinde && user.metaCaloriasLV && user.metaCaloriasFinde) {
+    const dia = new Date().getDay();
+    return (dia === 0 || dia === 6) ? user.metaCaloriasFinde : user.metaCaloriasLV;
+  }
+  return user.metaCalorias || 2000;
+}
+
 async function analyzeImageWithGemini(imageBuffer, text = '') {
   try {
     const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
@@ -219,8 +228,13 @@ bot.onText(/\/calorias/, async (msg) => {
   const chatId = msg.chat.id;
   const stats = await getTodayStats(chatId);
   const user = await User.findOne({ telegramId: chatId });
-  const meta = user?.metaCalorias || 2000;
+  const meta = getMetaDelDia(user);
   const restantes = meta - stats.caloriasNetas;
+
+  const dia = new Date().getDay();
+  const tipoDia = (user?.planFinde && user.metaCaloriasLV && user.metaCaloriasFinde)
+    ? ((dia === 0 || dia === 6) ? ' (fin de semana)' : ' (L-V)')
+    : '';
 
   bot.sendMessage(chatId, `🔥 *Calorías de hoy:*
 
@@ -228,7 +242,7 @@ bot.onText(/\/calorias/, async (msg) => {
 🏃 Quemadas: ${stats.caloriasQuemadas} kcal
 📊 Netas: ${stats.caloriasNetas} kcal
 
-🎯 Meta: ${meta} kcal
+🎯 Meta: ${meta} kcal${tipoDia}
 ${restantes > 0 ? `✅ Te quedan: ${restantes} kcal` : `⚠️ Excedido por: ${Math.abs(restantes)} kcal`}`, { parse_mode: 'Markdown' });
 });
 
@@ -248,7 +262,12 @@ bot.onText(/\/resumen/, async (msg) => {
   const chatId = msg.chat.id;
   const stats = await getTodayStats(chatId);
   const user = await User.findOne({ telegramId: chatId });
-  const meta = user?.metaCalorias || 2000;
+  const meta = getMetaDelDia(user);
+
+  const dia = new Date().getDay();
+  const tipoDia = (user?.planFinde && user.metaCaloriasLV && user.metaCaloriasFinde)
+    ? ((dia === 0 || dia === 6) ? ' (fin de semana)' : ' (L-V)')
+    : '';
 
   let comidasText = stats.comidas.length > 0
     ? stats.comidas.map(c => `  • ${c.nombre}: ${c.calorias} kcal`).join('\n')
@@ -276,7 +295,7 @@ ${ejerciciosText}
 🍞 Carbohidratos: ${stats.carbohidratos.toFixed(1)}g
 🧈 Grasas: ${stats.grasas.toFixed(1)}g
 
-🎯 Meta: ${meta} kcal | ${meta - stats.caloriasNetas > 0 ? `Restante: ${meta - stats.caloriasNetas}` : `Excedido: ${Math.abs(meta - stats.caloriasNetas)}`} kcal`, { parse_mode: 'Markdown' });
+🎯 Meta: ${meta} kcal${tipoDia} | ${meta - stats.caloriasNetas > 0 ? `Restante: ${meta - stats.caloriasNetas}` : `Excedido: ${Math.abs(meta - stats.caloriasNetas)}`} kcal`, { parse_mode: 'Markdown' });
 });
 
 bot.onText(/\/consultar (.+)/, async (msg, match) => {
@@ -739,6 +758,69 @@ bot.on('message', async (msg) => {
         }
         return;
 
+      case 'config_peso_meta':
+        const pesoMeta = parseFloat(text);
+        if (!isNaN(pesoMeta) && pesoMeta > 0) {
+          state.pesoMeta = pesoMeta;
+
+          // Calcular TMB y TDEE para mostrar botones dinámicos
+          let tmbTemp;
+          if (state.sexo === 'masculino') {
+            tmbTemp = 88.362 + (13.397 * state.peso) + (4.799 * state.altura) - (5.677 * state.edad);
+          } else {
+            tmbTemp = 447.593 + (9.247 * state.peso) + (3.098 * state.altura) - (4.330 * state.edad);
+          }
+          const tdeeTemp = Math.round(tmbTemp * state.factorActividad);
+          const minKcal = state.sexo === 'masculino' ? 1500 : 1200;
+
+          if (state.objetivo === 'deficit') {
+            state.step = 'config_nivel_deficit';
+            const kgPerder = state.peso - pesoMeta;
+            const opciones = [
+              { deficit: 250, nombre: 'Leve', emoji: '🟢' },
+              { deficit: 500, nombre: 'Moderado', emoji: '🟡' },
+              { deficit: 750, nombre: 'Agresivo', emoji: '🟠' },
+              { deficit: 1000, nombre: 'Extremo', emoji: '🔴' }
+            ];
+
+            const keyboard = opciones
+              .filter(o => tdeeTemp - o.deficit > 0)
+              .map(o => {
+                const kcalDia = tdeeTemp - o.deficit;
+                const semanas = Math.round(kgPerder / (o.deficit * 7 / 7700));
+                const warn = kcalDia < minKcal ? ' ⚠️' : '';
+                return [{ text: `${o.emoji} ${o.nombre}: ${kcalDia} kcal/día → ~${semanas} sem${warn}`, callback_data: `deficit_${o.deficit}` }];
+              });
+
+            bot.sendMessage(chatId, `📉 *Elige tu nivel de déficit:*\n\n_TDEE actual: ${tdeeTemp} kcal | Perder: ${kgPerder.toFixed(1)} kg_`, {
+              parse_mode: 'Markdown',
+              reply_markup: { inline_keyboard: keyboard }
+            });
+          } else if (state.objetivo === 'superavit') {
+            state.step = 'config_nivel_superavit';
+            const kgGanar = pesoMeta - state.peso;
+            const opciones = [
+              { superavit: 250, nombre: 'Lean bulk', emoji: '🟢' },
+              { superavit: 400, nombre: 'Moderado', emoji: '🟡' },
+              { superavit: 600, nombre: 'Agresivo', emoji: '🟠' }
+            ];
+
+            const keyboard = opciones.map(o => {
+              const kcalDia = tdeeTemp + o.superavit;
+              const semanas = Math.round(kgGanar / (o.superavit * 7 / 7700));
+              return [{ text: `${o.emoji} ${o.nombre}: ${kcalDia} kcal/día → ~${semanas} sem`, callback_data: `superavit_${o.superavit}` }];
+            });
+
+            bot.sendMessage(chatId, `📈 *Elige tu nivel de superávit:*\n\n_TDEE actual: ${tdeeTemp} kcal | Ganar: ${kgGanar.toFixed(1)} kg_`, {
+              parse_mode: 'Markdown',
+              reply_markup: { inline_keyboard: keyboard }
+            });
+          }
+        } else {
+          bot.sendMessage(chatId, '❌ Por favor ingresa un peso válido en kg.');
+        }
+        return;
+
       case 'metas_calorias':
         const metaCal = parseInt(text);
         if (!isNaN(metaCal)) {
@@ -884,21 +966,139 @@ bot.on('callback_query', async (query) => {
   const chatId = query.message.chat.id;
   const data = query.data;
 
+  // --- SEXO → pasa a ACTIVIDAD ---
   if (data === 'sexo_m' || data === 'sexo_f') {
     const state = userStates[chatId];
     if (state && state.step === 'config_sexo') {
       state.sexo = data === 'sexo_m' ? 'masculino' : 'femenino';
+      state.step = 'config_actividad';
       
-      await User.findOneAndUpdate(
-        { telegramId: chatId },
-        {
-          peso: state.peso,
-          altura: state.altura,
-          edad: state.edad,
-          sexo: state.sexo
+      bot.answerCallbackQuery(query.id);
+      bot.sendMessage(chatId, '🏃 ¿Cuál es tu nivel de actividad física?', {
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: '🪑 Sedentario (oficina, poco movimiento)', callback_data: 'act_1.2' }],
+            [{ text: '🚶 Ligero (1-3 días/semana)', callback_data: 'act_1.375' }],
+            [{ text: '🏃 Moderado (3-5 días/semana)', callback_data: 'act_1.55' }],
+            [{ text: '💪 Intenso (6-7 días/semana)', callback_data: 'act_1.725' }],
+            [{ text: '🔥 Muy intenso (atleta/trabajo físico)', callback_data: 'act_1.9' }]
+          ]
         }
-      );
+      });
+    }
+  }
 
+  // --- ACTIVIDAD → pasa a OBJETIVO ---
+  if (data.startsWith('act_')) {
+    const state = userStates[chatId];
+    if (state && state.step === 'config_actividad') {
+      const factorActividad = parseFloat(data.replace('act_', ''));
+      state.factorActividad = factorActividad;
+
+      const actividadNombres = {
+        1.2: 'Sedentario',
+        1.375: 'Ligero',
+        1.55: 'Moderado',
+        1.725: 'Intenso',
+        1.9: 'Muy intenso'
+      };
+      state.actividadNombre = actividadNombres[factorActividad] || 'Moderado';
+      state.step = 'config_objetivo';
+
+      bot.answerCallbackQuery(query.id);
+      bot.sendMessage(chatId, '🎯 ¿Cuál es tu objetivo?', {
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: '📉 Perder peso', callback_data: 'obj_deficit' }],
+            [{ text: '⚖️ Mantener peso', callback_data: 'obj_mantener' }],
+            [{ text: '📈 Ganar masa', callback_data: 'obj_superavit' }]
+          ]
+        }
+      });
+    }
+  }
+
+  // --- OBJETIVO → pasa a PESO META o PLAN FINDE ---
+  if (data.startsWith('obj_')) {
+    const state = userStates[chatId];
+    if (state && state.step === 'config_objetivo') {
+      state.objetivo = data.replace('obj_', '');
+
+      bot.answerCallbackQuery(query.id);
+
+      if (state.objetivo === 'mantener') {
+        state.step = 'config_plan_finde';
+        bot.sendMessage(chatId, '📅 ¿Quieres un plan de fin de semana?\n\n_Redistribuye calorías: comes un poco menos de L-V y un poco más los S-D, manteniendo el mismo total semanal._', {
+          parse_mode: 'Markdown',
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: '✅ Sí, plan de finde', callback_data: 'finde_si' }],
+              [{ text: '❌ No, igual todos los días', callback_data: 'finde_no' }]
+            ]
+          }
+        });
+      } else {
+        state.step = 'config_peso_meta';
+        bot.sendMessage(chatId, '🎯 ¿Cuál es tu peso objetivo en kg?');
+      }
+    }
+  }
+
+  // --- NIVEL DEFICIT → pasa a PLAN FINDE ---
+  if (data.startsWith('deficit_')) {
+    const state = userStates[chatId];
+    if (state && state.step === 'config_nivel_deficit') {
+      const deficitKcal = parseInt(data.replace('deficit_', ''));
+      state.deficitKcal = deficitKcal;
+
+      const nivelNombres = { 250: 'leve', 500: 'moderado', 750: 'agresivo', 1000: 'extremo' };
+      state.nivelDeficit = nivelNombres[deficitKcal] || 'moderado';
+
+      state.step = 'config_plan_finde';
+      bot.answerCallbackQuery(query.id);
+      bot.sendMessage(chatId, '📅 ¿Quieres un plan de fin de semana?\n\n_Redistribuye calorías: comes un poco menos de L-V y un poco más los S-D, manteniendo el mismo total semanal._', {
+        parse_mode: 'Markdown',
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: '✅ Sí, plan de finde', callback_data: 'finde_si' }],
+            [{ text: '❌ No, igual todos los días', callback_data: 'finde_no' }]
+          ]
+        }
+      });
+    }
+  }
+
+  // --- NIVEL SUPERAVIT → pasa a PLAN FINDE ---
+  if (data.startsWith('superavit_')) {
+    const state = userStates[chatId];
+    if (state && state.step === 'config_nivel_superavit') {
+      const superavitKcal = parseInt(data.replace('superavit_', ''));
+      state.superavitKcal = superavitKcal;
+
+      const nivelNombres = { 250: 'lean bulk', 400: 'moderado', 600: 'agresivo' };
+      state.nivelDeficit = nivelNombres[superavitKcal] || 'moderado';
+
+      state.step = 'config_plan_finde';
+      bot.answerCallbackQuery(query.id);
+      bot.sendMessage(chatId, '📅 ¿Quieres un plan de fin de semana?\n\n_Redistribuye calorías: comes un poco menos de L-V y un poco más los S-D, manteniendo el mismo total semanal._', {
+        parse_mode: 'Markdown',
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: '✅ Sí, plan de finde', callback_data: 'finde_si' }],
+            [{ text: '❌ No, igual todos los días', callback_data: 'finde_no' }]
+          ]
+        }
+      });
+    }
+  }
+
+  // --- PLAN FINDE → GUARDAR Y MOSTRAR RESULTADO ---
+  if (data === 'finde_si' || data === 'finde_no') {
+    const state = userStates[chatId];
+    if (state && state.step === 'config_plan_finde') {
+      state.planFinde = data === 'finde_si';
+
+      // Calcular TMB
       let tmb;
       if (state.sexo === 'masculino') {
         tmb = 88.362 + (13.397 * state.peso) + (4.799 * state.altura) - (5.677 * state.edad);
@@ -906,25 +1106,94 @@ bot.on('callback_query', async (query) => {
         tmb = 447.593 + (9.247 * state.peso) + (3.098 * state.altura) - (4.330 * state.edad);
       }
 
-      const caloriasRecomendadas = Math.round(tmb * 1.55);
+      // Calcular TDEE
+      const tdee = Math.round(tmb * state.factorActividad);
 
+      // Calcular meta diaria
+      let metaDiaria;
+      if (state.objetivo === 'deficit') {
+        metaDiaria = tdee - (state.deficitKcal || 500);
+      } else if (state.objetivo === 'superavit') {
+        metaDiaria = tdee + (state.superavitKcal || 250);
+      } else {
+        metaDiaria = tdee;
+      }
+
+      // Calcular plan semanal
+      let metaLV, metaFinde;
+      if (state.planFinde) {
+        const metaSemanal = metaDiaria * 7;
+        metaLV = Math.round(metaSemanal * 0.135);
+        metaFinde = Math.round(metaSemanal * 0.1625);
+      } else {
+        metaLV = metaDiaria;
+        metaFinde = metaDiaria;
+      }
+
+      // Calcular semanas estimadas
+      let semanasTexto = '';
+      if (state.objetivo === 'deficit' && state.pesoMeta) {
+        const kgPerder = state.peso - state.pesoMeta;
+        const kgPorSemana = (state.deficitKcal * 7) / 7700;
+        const semanas = Math.round(kgPerder / kgPorSemana);
+        semanasTexto = `\n⏱️ Tiempo estimado: ~${semanas} semanas`;
+      } else if (state.objetivo === 'superavit' && state.pesoMeta) {
+        const kgGanar = state.pesoMeta - state.peso;
+        const kgPorSemana = (state.superavitKcal * 7) / 7700;
+        const semanas = Math.round(kgGanar / kgPorSemana);
+        semanasTexto = `\n⏱️ Tiempo estimado: ~${semanas} semanas`;
+      }
+
+      // Guardar en DB
+      const objetivoNombres = { deficit: 'Perder peso', mantener: 'Mantener peso', superavit: 'Ganar masa' };
       await User.findOneAndUpdate(
         { telegramId: chatId },
-        { metaCalorias: caloriasRecomendadas }
+        {
+          peso: state.peso,
+          altura: state.altura,
+          edad: state.edad,
+          sexo: state.sexo,
+          actividad: state.actividadNombre,
+          objetivo: state.objetivo,
+          pesoMeta: state.pesoMeta || null,
+          nivelDeficit: state.nivelDeficit || null,
+          planFinde: state.planFinde,
+          metaCalorias: metaDiaria,
+          metaCaloriasLV: metaLV,
+          metaCaloriasFinde: metaFinde
+        }
       );
 
       delete userStates[chatId];
-      
       bot.answerCallbackQuery(query.id);
+
+      // Construir mensaje
+      let deficitTexto = '';
+      if (state.objetivo === 'deficit') {
+        deficitTexto = `\n📉 Déficit: -${state.deficitKcal} kcal/día (${state.nivelDeficit})`;
+      } else if (state.objetivo === 'superavit') {
+        deficitTexto = `\n📈 Superávit: +${state.superavitKcal} kcal/día (${state.nivelDeficit})`;
+      }
+
+      let pesoMetaTexto = state.pesoMeta ? ` → Meta: ${state.pesoMeta} kg` : '';
+
+      let planTexto = '';
+      if (state.planFinde) {
+        planTexto = `\n\n📅 *Plan semanal:*\n  L-V: ${metaLV} kcal/día\n  S-D: ${metaFinde} kcal/día`;
+      }
+
       bot.sendMessage(chatId, `✅ *Configuración guardada:*
 
-⚖️ Peso: ${state.peso} kg
+⚖️ Peso: ${state.peso} kg${pesoMetaTexto}
 📏 Altura: ${state.altura} cm
 🎂 Edad: ${state.edad} años
 👤 Sexo: ${state.sexo}
+🏃 Actividad: ${state.actividadNombre}
+🎯 Objetivo: ${objetivoNombres[state.objetivo]}
 
-🔥 TMB calculada: ${Math.round(tmb)} kcal
-🎯 Meta diaria sugerida: ${caloriasRecomendadas} kcal
+🔥 TMB: ${Math.round(tmb)} kcal
+📊 TDEE (mantenimiento): ${tdee} kcal${deficitTexto}
+🎯 Meta diaria: ${metaDiaria} kcal${semanasTexto}${planTexto}
 
 Puedes ajustar tus metas con /metas`, { parse_mode: 'Markdown' });
     }
