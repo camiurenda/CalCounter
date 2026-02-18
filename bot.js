@@ -251,8 +251,10 @@ bot.onText(/\/macros/, async (msg) => {
   const stats = await getTodayStats(chatId);
   const user = await User.findOne({ telegramId: chatId });
 
+  const metaCal = getMetaDelDia(user);
   bot.sendMessage(chatId, `📊 *Macros de hoy:*
 
+🔥 Calorías: ${stats.calorias} / ${metaCal} kcal
 🥩 Proteínas: ${stats.proteinas.toFixed(1)}g ${user?.metaProteinas ? `/ ${user.metaProteinas}g` : ''}
 🍞 Carbohidratos: ${stats.carbohidratos.toFixed(1)}g ${user?.metaCarbohidratos ? `/ ${user.metaCarbohidratos}g` : ''}
 🧈 Grasas: ${stats.grasas.toFixed(1)}g ${user?.metaGrasas ? `/ ${user.metaGrasas}g` : ''}`, { parse_mode: 'Markdown' });
@@ -1144,6 +1146,19 @@ bot.on('callback_query', async (query) => {
         semanasTexto = `\n⏱️ Tiempo estimado: ~${semanas} semanas`;
       }
 
+      // Calcular macros según objetivo
+      let pctProt, pctCarb, pctGrasa;
+      if (state.objetivo === 'deficit') {
+        pctProt = 0.40; pctCarb = 0.35; pctGrasa = 0.25;
+      } else if (state.objetivo === 'superavit') {
+        pctProt = 0.30; pctCarb = 0.45; pctGrasa = 0.25;
+      } else {
+        pctProt = 0.30; pctCarb = 0.40; pctGrasa = 0.30;
+      }
+      const metaProteinas = Math.round((metaDiaria * pctProt) / 4);
+      const metaCarbohidratos = Math.round((metaDiaria * pctCarb) / 4);
+      const metaGrasas = Math.round((metaDiaria * pctGrasa) / 9);
+
       // Guardar en DB
       const objetivoNombres = { deficit: 'Perder peso', mantener: 'Mantener peso', superavit: 'Ganar masa' };
       await User.findOneAndUpdate(
@@ -1160,7 +1175,10 @@ bot.on('callback_query', async (query) => {
           planFinde: state.planFinde,
           metaCalorias: metaDiaria,
           metaCaloriasLV: metaLV,
-          metaCaloriasFinde: metaFinde
+          metaCaloriasFinde: metaFinde,
+          metaProteinas,
+          metaCarbohidratos,
+          metaGrasas
         }
       );
 
@@ -1194,6 +1212,11 @@ bot.on('callback_query', async (query) => {
 🔥 TMB: ${Math.round(tmb)} kcal
 📊 TDEE (mantenimiento): ${tdee} kcal${deficitTexto}
 🎯 Meta diaria: ${metaDiaria} kcal${semanasTexto}${planTexto}
+
+📋 *Macros diarios:*
+🥩 Proteínas: ${metaProteinas}g
+🍞 Carbohidratos: ${metaCarbohidratos}g
+🧈 Grasas: ${metaGrasas}g
 
 Puedes ajustar tus metas con /metas`, { parse_mode: 'Markdown' });
     }
