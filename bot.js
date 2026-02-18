@@ -44,7 +44,7 @@ function getMetaDelDia(user) {
 
 async function analyzeImageWithGemini(imageBuffer, text = '') {
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
     const prompt = `Analiza esta imagen de comida${text ? ` (contexto adicional: ${text})` : ''}.
     Responde SOLO con un JSON válido con este formato exacto:
     {
@@ -80,7 +80,7 @@ async function analyzeImageWithGemini(imageBuffer, text = '') {
 
 async function analyzeTextWithGemini(text) {
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
     const prompt = `Analiza esta descripción de comida: "${text}".
     Responde SOLO con un JSON válido con este formato exacto:
     {
@@ -107,7 +107,7 @@ async function analyzeTextWithGemini(text) {
 
 async function consultWithGemini(text) {
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
     const prompt = `Analiza esta descripción de comida: "${text}".
     Responde SOLO con un JSON válido con este formato exacto:
     {
