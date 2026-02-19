@@ -175,7 +175,7 @@ bot.onText(/\/start/, async (msg) => {
     });
   }
 
-  bot.sendMessage(chatId, `🍎 ¡Bienvenido a CalCounter!
+  await bot.sendMessage(chatId, `🍎 ¡Bienvenido a CalCounter!
 
 Soy tu asistente para contar calorías. Puedes:
 📸 Enviarme una foto de tu comida
@@ -202,7 +202,7 @@ Comandos disponibles:
 bot.onText(/\/config/, async (msg) => {
   const chatId = msg.chat.id;
   userStates[chatId] = { step: 'config_peso' };
-  bot.sendMessage(chatId, '⚙️ Vamos a configurar tus datos.\n\n¿Cuál es tu peso actual en kg?');
+  await bot.sendMessage(chatId, '⚙️ Vamos a configurar tus datos.\n\n¿Cuál es tu peso actual en kg?');
 });
 
 bot.onText(/\/metas/, async (msg) => {
@@ -211,9 +211,9 @@ bot.onText(/\/metas/, async (msg) => {
 
   if (!user || !user.metaCalorias) {
     userStates[chatId] = { step: 'metas_calorias' };
-    bot.sendMessage(chatId, '🎯 Configuremos tus metas diarias.\n\n¿Cuántas calorías quieres consumir por día?');
+    await bot.sendMessage(chatId, '🎯 Configuremos tus metas diarias.\n\n¿Cuántas calorías quieres consumir por día?');
   } else {
-    bot.sendMessage(chatId, `🎯 *Tus metas actuales:*
+    await bot.sendMessage(chatId, `🎯 *Tus metas actuales:*
 
 🔥 Calorías: ${user.metaCalorias} kcal
 🥩 Proteínas: ${user.metaProteinas || 0}g
@@ -236,7 +236,7 @@ bot.onText(/\/calorias/, async (msg) => {
     ? ((dia === 0 || dia === 6) ? ' (fin de semana)' : ' (L-V)')
     : '';
 
-  bot.sendMessage(chatId, `🔥 *Calorías de hoy:*
+  await bot.sendMessage(chatId, `🔥 *Calorías de hoy:*
 
 📥 Consumidas: ${stats.calorias} kcal
 🏃 Quemadas: ${stats.caloriasQuemadas} kcal
@@ -252,7 +252,7 @@ bot.onText(/\/macros/, async (msg) => {
   const user = await User.findOne({ telegramId: chatId });
 
   const metaCal = getMetaDelDia(user);
-  bot.sendMessage(chatId, `📊 *Macros de hoy:*
+  await bot.sendMessage(chatId, `📊 *Macros de hoy:*
 
 🔥 Calorías: ${stats.calorias} / ${metaCal} kcal
 🥩 Proteínas: ${stats.proteinas.toFixed(1)}g ${user?.metaProteinas ? `/ ${user.metaProteinas}g` : ''}
@@ -279,7 +279,7 @@ bot.onText(/\/resumen/, async (msg) => {
     ? stats.ejercicios.map(e => `  • ${e.nombre}: -${e.caloriasQuemadas} kcal`).join('\n')
     : '  No hay registros';
 
-  bot.sendMessage(chatId, `📋 *Resumen del día:*
+  await bot.sendMessage(chatId, `📋 *Resumen del día:*
 
 🍽️ *Comidas:*
 ${comidasText}
@@ -304,12 +304,12 @@ bot.onText(/\/consultar (.+)/, async (msg, match) => {
   const chatId = msg.chat.id;
   const texto = match[1];
 
-  bot.sendMessage(chatId, '🔍 Analizando...');
+  await bot.sendMessage(chatId, '🔍 Analizando...');
 
   const resultado = await consultWithGemini(texto);
 
   if (resultado) {
-    bot.sendMessage(chatId, `📊 *Información nutricional de "${resultado.nombre}":*
+    await bot.sendMessage(chatId, `📊 *Información nutricional de "${resultado.nombre}":*
 
 🔥 Calorías: ${resultado.calorias} kcal
 🥩 Proteínas: ${resultado.proteinas}g
@@ -319,14 +319,14 @@ bot.onText(/\/consultar (.+)/, async (msg, match) => {
 
 _Este es solo una consulta, no se ha registrado._`, { parse_mode: 'Markdown' });
   } else {
-    bot.sendMessage(chatId, '❌ No pude analizar esa comida. Intenta ser más específico.');
+    await bot.sendMessage(chatId, '❌ No pude analizar esa comida. Intenta ser más específico.');
   }
 });
 
 bot.onText(/\/consultar$/, async (msg) => {
   const chatId = msg.chat.id;
   userStates[chatId] = { step: 'consultar' };
-  bot.sendMessage(chatId, '🔍 ¿Qué comida quieres consultar? (no se registrará)');
+  await bot.sendMessage(chatId, '🔍 ¿Qué comida quieres consultar? (no se registrará)');
 });
 
 bot.onText(/\/historial/, async (msg) => {
@@ -366,7 +366,7 @@ bot.onText(/\/historial/, async (msg) => {
     texto += `📆 ${r.fecha}: ${r.calorias} kcal (🏃-${r.quemadas}) = ${r.netas} netas\n`;
   });
 
-  bot.sendMessage(chatId, texto, { parse_mode: 'Markdown' });
+  await bot.sendMessage(chatId, texto, { parse_mode: 'Markdown' });
 });
 
 bot.onText(/\/semana/, async (msg) => {
@@ -433,7 +433,7 @@ bot.onText(/\/semana/, async (msg) => {
   const promedio = dataCalorias.reduce((a, b) => a + b, 0) / 7;
   const total = dataCalorias.reduce((a, b) => a + b, 0);
 
-  bot.sendPhoto(chatId, imageBuffer, {
+  await bot.sendPhoto(chatId, imageBuffer, {
     caption: `📊 *Estadísticas semanales*\n\n📈 Promedio diario: ${promedio.toFixed(0)} kcal\n📊 Total semana: ${total} kcal\n🏃 Total quemado: ${dataQuemadas.reduce((a, b) => a + b, 0)} kcal`,
     parse_mode: 'Markdown'
   });
@@ -442,7 +442,7 @@ bot.onText(/\/semana/, async (msg) => {
 bot.onText(/\/peso$/, async (msg) => {
   const chatId = msg.chat.id;
   userStates[chatId] = { step: 'peso' };
-  bot.sendMessage(chatId, '⚖️ ¿Cuál es tu peso actual en kg?');
+  await bot.sendMessage(chatId, '⚖️ ¿Cuál es tu peso actual en kg?');
 });
 
 bot.onText(/\/peso (.+)/, async (msg, match) => {
@@ -450,7 +450,7 @@ bot.onText(/\/peso (.+)/, async (msg, match) => {
   const peso = parseFloat(match[1]);
 
   if (isNaN(peso)) {
-    bot.sendMessage(chatId, '❌ Por favor ingresa un número válido.');
+    await bot.sendMessage(chatId, '❌ Por favor ingresa un número válido.');
     return;
   }
 
@@ -462,13 +462,13 @@ bot.onText(/\/peso (.+)/, async (msg, match) => {
     `${w.fecha.toLocaleDateString('es-ES')}: ${w.peso} kg`
   ).join('\n');
 
-  bot.sendMessage(chatId, `✅ Peso registrado: ${peso} kg\n\n📊 Últimos registros:\n${historial}`);
+  await bot.sendMessage(chatId, `✅ Peso registrado: ${peso} kg\n\n📊 Últimos registros:\n${historial}`);
 });
 
 bot.onText(/\/ejercicio$/, async (msg) => {
   const chatId = msg.chat.id;
   userStates[chatId] = { step: 'ejercicio_nombre' };
-  bot.sendMessage(chatId, '🏃 ¿Qué ejercicio realizaste?');
+  await bot.sendMessage(chatId, '🏃 ¿Qué ejercicio realizaste?');
 });
 
 bot.onText(/\/ejercicio (.+)/, async (msg, match) => {
@@ -485,13 +485,13 @@ bot.onText(/\/ejercicio (.+)/, async (msg, match) => {
         nombre,
         caloriasQuemadas: calorias
       });
-      bot.sendMessage(chatId, `✅ Ejercicio registrado:\n🏃 ${nombre}: -${calorias} kcal`);
+      await bot.sendMessage(chatId, `✅ Ejercicio registrado:\n🏃 ${nombre}: -${calorias} kcal`);
       return;
     }
   }
   
   userStates[chatId] = { step: 'ejercicio_calorias', ejercicioNombre: texto };
-  bot.sendMessage(chatId, `🔥 ¿Cuántas calorías quemaste con "${texto}"?`);
+  await bot.sendMessage(chatId, `🔥 ¿Cuántas calorías quemaste con "${texto}"?`);
 });
 
 bot.onText(/\/borrarejercicio/, async (msg) => {
@@ -505,9 +505,9 @@ bot.onText(/\/borrarejercicio/, async (msg) => {
   }).sort({ createdAt: -1 });
 
   if (lastExercise) {
-    bot.sendMessage(chatId, `🗑️ Ejercicio eliminado:\n${lastExercise.nombre}: -${lastExercise.caloriasQuemadas} kcal`);
+    await bot.sendMessage(chatId, `🗑️ Ejercicio eliminado:\n${lastExercise.nombre}: -${lastExercise.caloriasQuemadas} kcal`);
   } else {
-    bot.sendMessage(chatId, '❌ No hay ejercicios registrados hoy para eliminar.');
+    await bot.sendMessage(chatId, '❌ No hay ejercicios registrados hoy para eliminar.');
   }
 });
 
@@ -531,9 +531,9 @@ bot.onText(/\/guardar/, async (msg) => {
       grasas: lastFood.grasas,
       cantidad: lastFood.cantidad
     });
-    bot.sendMessage(chatId, `⭐ Guardado como frecuente:\n${lastFood.nombre} (${lastFood.calorias} kcal)`);
+    await bot.sendMessage(chatId, `⭐ Guardado como frecuente:\n${lastFood.nombre} (${lastFood.calorias} kcal)`);
   } else {
-    bot.sendMessage(chatId, '❌ No hay comidas registradas hoy para guardar.');
+    await bot.sendMessage(chatId, '❌ No hay comidas registradas hoy para guardar.');
   }
 });
 
@@ -542,7 +542,7 @@ bot.onText(/\/frecuentes/, async (msg) => {
   const frecuentes = await FrequentMeal.find({ telegramId: chatId });
 
   if (frecuentes.length === 0) {
-    bot.sendMessage(chatId, '📭 No tienes comidas frecuentes guardadas.\nUsa /guardar después de registrar una comida.');
+    await bot.sendMessage(chatId, '📭 No tienes comidas frecuentes guardadas.\nUsa /guardar después de registrar una comida.');
     return;
   }
 
@@ -551,7 +551,7 @@ bot.onText(/\/frecuentes/, async (msg) => {
     callback_data: `freq_${f._id}`
   }]);
 
-  bot.sendMessage(chatId, '⭐ *Comidas frecuentes:*\nToca una para registrarla:', {
+  await bot.sendMessage(chatId, '⭐ *Comidas frecuentes:*\nToca una para registrarla:', {
     parse_mode: 'Markdown',
     reply_markup: { inline_keyboard: keyboard }
   });
@@ -562,7 +562,7 @@ bot.onText(/\/eliminarfav/, async (msg) => {
   const frecuentes = await FrequentMeal.find({ telegramId: chatId });
 
   if (frecuentes.length === 0) {
-    bot.sendMessage(chatId, '📭 No tienes comidas frecuentes guardadas.');
+    await bot.sendMessage(chatId, '📭 No tienes comidas frecuentes guardadas.');
     return;
   }
 
@@ -571,7 +571,7 @@ bot.onText(/\/eliminarfav/, async (msg) => {
     callback_data: `delfav_${f._id}`
   }]);
 
-  bot.sendMessage(chatId, '🗑️ *Selecciona la comida a eliminar:*', {
+  await bot.sendMessage(chatId, '🗑️ *Selecciona la comida a eliminar:*', {
     parse_mode: 'Markdown',
     reply_markup: { inline_keyboard: keyboard }
   });
@@ -583,7 +583,7 @@ bot.onText(/\/exportar/, async (msg) => {
   const foods = await Food.find({ telegramId: chatId }).sort({ fecha: -1 });
   
   if (foods.length === 0) {
-    bot.sendMessage(chatId, '📭 No hay datos para exportar.');
+    await bot.sendMessage(chatId, '📭 No hay datos para exportar.');
     return;
   }
 
@@ -600,7 +600,7 @@ bot.onText(/\/exportar/, async (msg) => {
   const parser = new Parser();
   const csv = parser.parse(data);
 
-  bot.sendDocument(chatId, Buffer.from(csv), {
+  await bot.sendDocument(chatId, Buffer.from(csv), {
     filename: 'calcounter_export.csv',
     caption: '📊 Aquí tienes tu historial de comidas exportado.'
   });
@@ -625,9 +625,15 @@ bot.on('callback_query', async (query) => {
         cantidad: frecuente.cantidad
       });
       
-      bot.answerCallbackQuery(query.id, { text: '✅ Registrado!' });
-      bot.sendMessage(chatId, `✅ Registrado: ${frecuente.nombre} (${frecuente.calorias} kcal)`);
+      const stats = await getTodayStats(chatId);
+      const user = await User.findOne({ telegramId: chatId });
+      const meta = getMetaDelDia(user);
+      const restantes = meta - stats.caloriasNetas;
+      
+      await bot.answerCallbackQuery(query.id, { text: '✅ Registrado!' });
+      await bot.sendMessage(chatId, `✅ Registrado: ${frecuente.nombre} (${frecuente.calorias} kcal)\n\n${restantes > 0 ? `🎯 Te quedan: ${restantes} kcal` : `⚠️ Excedido por: ${Math.abs(restantes)} kcal`}`);
     }
+    return;
   }
 
   if (data.startsWith('delfav_')) {
@@ -635,8 +641,8 @@ bot.on('callback_query', async (query) => {
     const deleted = await FrequentMeal.findByIdAndDelete(id);
     
     if (deleted) {
-      bot.answerCallbackQuery(query.id, { text: '🗑️ Eliminado!' });
-      bot.sendMessage(chatId, `🗑️ Eliminado: ${deleted.nombre}`);
+      await bot.answerCallbackQuery(query.id, { text: '🗑️ Eliminado!' });
+      await bot.sendMessage(chatId, `🗑️ Eliminado: ${deleted.nombre}`);
     }
   }
 
@@ -647,15 +653,21 @@ bot.on('callback_query', async (query) => {
         telegramId: chatId,
         ...state.pendingFood
       });
-      bot.answerCallbackQuery(query.id, { text: '✅ Guardado!' });
-      bot.sendMessage(chatId, `✅ Registrado: ${state.pendingFood.nombre} (${state.pendingFood.calorias} kcal)`);
+      
+      const stats = await getTodayStats(chatId);
+      const user = await User.findOne({ telegramId: chatId });
+      const meta = getMetaDelDia(user);
+      const restantes = meta - stats.caloriasNetas;
+      
+      await bot.answerCallbackQuery(query.id, { text: '✅ Guardado!' });
+      await bot.sendMessage(chatId, `✅ Registrado: ${state.pendingFood.nombre} (${state.pendingFood.calorias} kcal)\n\n${restantes > 0 ? `🎯 Te quedan: ${restantes} kcal` : `⚠️ Excedido por: ${Math.abs(restantes)} kcal`}`);
       delete userStates[chatId];
     }
   }
 
   if (data === 'cancel_food') {
-    bot.answerCallbackQuery(query.id, { text: '❌ Cancelado' });
-    bot.sendMessage(chatId, '❌ Registro cancelado.');
+    await bot.answerCallbackQuery(query.id, { text: '❌ Cancelado' });
+    await bot.sendMessage(chatId, '❌ Registro cancelado.');
     delete userStates[chatId];
   }
 });
@@ -664,7 +676,7 @@ bot.on('photo', async (msg) => {
   const chatId = msg.chat.id;
   const caption = msg.caption || '';
 
-  bot.sendMessage(chatId, '🔍 Analizando imagen...');
+  await bot.sendMessage(chatId, '🔍 Analizando imagen...');
 
   try {
     const fileId = msg.photo[msg.photo.length - 1].file_id;
@@ -679,7 +691,7 @@ bot.on('photo', async (msg) => {
     if (resultado) {
       userStates[chatId] = { pendingFood: resultado };
 
-      bot.sendMessage(chatId, `📸 *Análisis de imagen:*
+      await bot.sendMessage(chatId, `📸 *Análisis de imagen:*
 
 🍽️ ${resultado.nombre}
 🔥 Calorías: ${resultado.calorias} kcal
@@ -700,11 +712,11 @@ bot.on('photo', async (msg) => {
         }
       });
     } else {
-      bot.sendMessage(chatId, '❌ No pude analizar la imagen. Intenta con otra foto o describe la comida.');
+      await bot.sendMessage(chatId, '❌ No pude analizar la imagen. Intenta con otra foto o describe la comida.');
     }
   } catch (error) {
     console.error('Error procesando imagen:', error);
-    bot.sendMessage(chatId, '❌ Error al procesar la imagen.');
+    await bot.sendMessage(chatId, '❌ Error al procesar la imagen.');
   }
 });
 
@@ -723,9 +735,9 @@ bot.on('message', async (msg) => {
         if (!isNaN(peso)) {
           state.peso = peso;
           state.step = 'config_altura';
-          bot.sendMessage(chatId, '📏 ¿Cuál es tu altura en cm?');
+          await bot.sendMessage(chatId, '📏 ¿Cuál es tu altura en cm?');
         } else {
-          bot.sendMessage(chatId, '❌ Por favor ingresa un número válido.');
+          await bot.sendMessage(chatId, '❌ Por favor ingresa un número válido.');
         }
         return;
 
@@ -734,9 +746,9 @@ bot.on('message', async (msg) => {
         if (!isNaN(altura)) {
           state.altura = altura;
           state.step = 'config_edad';
-          bot.sendMessage(chatId, '🎂 ¿Cuál es tu edad?');
+          await bot.sendMessage(chatId, '🎂 ¿Cuál es tu edad?');
         } else {
-          bot.sendMessage(chatId, '❌ Por favor ingresa un número válido.');
+          await bot.sendMessage(chatId, '❌ Por favor ingresa un número válido.');
         }
         return;
 
@@ -745,7 +757,7 @@ bot.on('message', async (msg) => {
         if (!isNaN(edad)) {
           state.edad = edad;
           state.step = 'config_sexo';
-          bot.sendMessage(chatId, '👤 ¿Cuál es tu sexo?', {
+          await bot.sendMessage(chatId, '👤 ¿Cuál es tu sexo?', {
             reply_markup: {
               inline_keyboard: [
                 [
@@ -756,7 +768,7 @@ bot.on('message', async (msg) => {
             }
           });
         } else {
-          bot.sendMessage(chatId, '❌ Por favor ingresa un número válido.');
+          await bot.sendMessage(chatId, '❌ Por favor ingresa un número válido.');
         }
         return;
 
@@ -794,7 +806,7 @@ bot.on('message', async (msg) => {
                 return [{ text: `${o.emoji} ${o.nombre}: ${kcalDia} kcal/día → ~${semanas} sem${warn}`, callback_data: `deficit_${o.deficit}` }];
               });
 
-            bot.sendMessage(chatId, `📉 *Elige tu nivel de déficit:*\n\n_TDEE actual: ${tdeeTemp} kcal | Perder: ${kgPerder.toFixed(1)} kg_`, {
+          await bot.sendMessage(chatId, `📉 *Elige tu nivel de déficit:*\n\n_TDEE actual: ${tdeeTemp} kcal | Perder: ${kgPerder.toFixed(1)} kg_`, {
               parse_mode: 'Markdown',
               reply_markup: { inline_keyboard: keyboard }
             });
@@ -813,13 +825,13 @@ bot.on('message', async (msg) => {
               return [{ text: `${o.emoji} ${o.nombre}: ${kcalDia} kcal/día → ~${semanas} sem`, callback_data: `superavit_${o.superavit}` }];
             });
 
-            bot.sendMessage(chatId, `📈 *Elige tu nivel de superávit:*\n\n_TDEE actual: ${tdeeTemp} kcal | Ganar: ${kgGanar.toFixed(1)} kg_`, {
+          await bot.sendMessage(chatId, `📈 *Elige tu nivel de superávit:*\n\n_TDEE actual: ${tdeeTemp} kcal | Ganar: ${kgGanar.toFixed(1)} kg_`, {
               parse_mode: 'Markdown',
               reply_markup: { inline_keyboard: keyboard }
             });
           }
         } else {
-          bot.sendMessage(chatId, '❌ Por favor ingresa un peso válido en kg.');
+          await bot.sendMessage(chatId, '❌ Por favor ingresa un peso válido en kg.');
         }
         return;
 
@@ -828,9 +840,9 @@ bot.on('message', async (msg) => {
         if (!isNaN(metaCal)) {
           state.metaCalorias = metaCal;
           state.step = 'metas_proteinas';
-          bot.sendMessage(chatId, '🥩 ¿Cuántos gramos de proteína al día?');
+          await bot.sendMessage(chatId, '🥩 ¿Cuántos gramos de proteína al día?');
         } else {
-          bot.sendMessage(chatId, '❌ Por favor ingresa un número válido.');
+          await bot.sendMessage(chatId, '❌ Por favor ingresa un número válido.');
         }
         return;
 
@@ -839,9 +851,9 @@ bot.on('message', async (msg) => {
         if (!isNaN(metaProt)) {
           state.metaProteinas = metaProt;
           state.step = 'metas_carbohidratos';
-          bot.sendMessage(chatId, '🍞 ¿Cuántos gramos de carbohidratos al día?');
+          await bot.sendMessage(chatId, '🍞 ¿Cuántos gramos de carbohidratos al día?');
         } else {
-          bot.sendMessage(chatId, '❌ Por favor ingresa un número válido.');
+          await bot.sendMessage(chatId, '❌ Por favor ingresa un número válido.');
         }
         return;
 
@@ -850,9 +862,9 @@ bot.on('message', async (msg) => {
         if (!isNaN(metaCarb)) {
           state.metaCarbohidratos = metaCarb;
           state.step = 'metas_grasas';
-          bot.sendMessage(chatId, '🧈 ¿Cuántos gramos de grasas al día?');
+          await bot.sendMessage(chatId, '🧈 ¿Cuántos gramos de grasas al día?');
         } else {
-          bot.sendMessage(chatId, '❌ Por favor ingresa un número válido.');
+          await bot.sendMessage(chatId, '❌ Por favor ingresa un número válido.');
         }
         return;
 
@@ -870,13 +882,13 @@ bot.on('message', async (msg) => {
             { upsert: true }
           );
           delete userStates[chatId];
-          bot.sendMessage(chatId, `✅ Metas configuradas:
+          await bot.sendMessage(chatId, `✅ Metas configuradas:
 🔥 Calorías: ${state.metaCalorias} kcal
 🥩 Proteínas: ${state.metaProteinas}g
 🍞 Carbohidratos: ${state.metaCarbohidratos}g
 🧈 Grasas: ${metaGrasa}g`);
         } else {
-          bot.sendMessage(chatId, '❌ Por favor ingresa un número válido.');
+          await bot.sendMessage(chatId, '❌ Por favor ingresa un número válido.');
         }
         return;
 
@@ -886,16 +898,16 @@ bot.on('message', async (msg) => {
           await Weight.create({ telegramId: chatId, peso: pesoReg });
           await User.findOneAndUpdate({ telegramId: chatId }, { peso: pesoReg }, { upsert: true });
           delete userStates[chatId];
-          bot.sendMessage(chatId, `✅ Peso registrado: ${pesoReg} kg`);
+          await bot.sendMessage(chatId, `✅ Peso registrado: ${pesoReg} kg`);
         } else {
-          bot.sendMessage(chatId, '❌ Por favor ingresa un número válido.');
+          await bot.sendMessage(chatId, '❌ Por favor ingresa un número válido.');
         }
         return;
 
       case 'ejercicio_nombre':
         state.ejercicioNombre = text;
         state.step = 'ejercicio_calorias';
-        bot.sendMessage(chatId, `🔥 ¿Cuántas calorías quemaste con "${text}"?`);
+        await bot.sendMessage(chatId, `🔥 ¿Cuántas calorías quemaste con "${text}"?`);
         return;
 
       case 'ejercicio_calorias':
@@ -907,18 +919,19 @@ bot.on('message', async (msg) => {
             caloriasQuemadas: calQuemadas
           });
           delete userStates[chatId];
-          bot.sendMessage(chatId, `✅ Ejercicio registrado:\n🏃 ${state.ejercicioNombre}: -${calQuemadas} kcal`);
+          await bot.sendMessage(chatId, `✅ Ejercicio registrado:
+🏃 ${state.ejercicioNombre}: -${calQuemadas} kcal`);
         } else {
-          bot.sendMessage(chatId, '❌ Por favor ingresa un número válido.');
+          await bot.sendMessage(chatId, '❌ Por favor ingresa un número válido.');
         }
         return;
 
       case 'consultar':
         delete userStates[chatId];
-        bot.sendMessage(chatId, '🔍 Analizando...');
+        await bot.sendMessage(chatId, '🔍 Analizando...');
         const consultaResult = await consultWithGemini(text);
         if (consultaResult) {
-          bot.sendMessage(chatId, `📊 *Información nutricional de "${consultaResult.nombre}":*
+          await bot.sendMessage(chatId, `📊 *Información nutricional de "${consultaResult.nombre}":*
 
 🔥 Calorías: ${consultaResult.calorias} kcal
 🥩 Proteínas: ${consultaResult.proteinas}g
@@ -928,19 +941,19 @@ bot.on('message', async (msg) => {
 
 _Este es solo una consulta, no se ha registrado._`, { parse_mode: 'Markdown' });
         } else {
-          bot.sendMessage(chatId, '❌ No pude analizar esa comida.');
+          await bot.sendMessage(chatId, '❌ No pude analizar esa comida.');
         }
         return;
     }
   }
 
-  bot.sendMessage(chatId, '🔍 Analizando...');
+  await bot.sendMessage(chatId, '🔍 Analizando...');
   const resultado = await analyzeTextWithGemini(text);
 
   if (resultado) {
     userStates[chatId] = { pendingFood: resultado };
 
-    bot.sendMessage(chatId, `📝 *Análisis:*
+    await bot.sendMessage(chatId, `📝 *Análisis:*
 
 🍽️ ${resultado.nombre}
 🔥 Calorías: ${resultado.calorias} kcal
@@ -961,7 +974,7 @@ _Este es solo una consulta, no se ha registrado._`, { parse_mode: 'Markdown' });
       }
     });
   } else {
-    bot.sendMessage(chatId, '❌ No pude analizar esa comida. Intenta ser más específico o envía una foto.');
+    await bot.sendMessage(chatId, '❌ No pude analizar esa comida. Intenta ser más específico o envía una foto.');
   }
 });
 
@@ -976,8 +989,8 @@ bot.on('callback_query', async (query) => {
       state.sexo = data === 'sexo_m' ? 'masculino' : 'femenino';
       state.step = 'config_actividad';
       
-      bot.answerCallbackQuery(query.id);
-      bot.sendMessage(chatId, '🏃 ¿Cuál es tu nivel de actividad física?', {
+      await bot.answerCallbackQuery(query.id);
+      await bot.sendMessage(chatId, '🏃 ¿Cuál es tu nivel de actividad física?', {
         reply_markup: {
           inline_keyboard: [
             [{ text: '🪑 Sedentario (oficina, poco movimiento)', callback_data: 'act_1.2' }],
@@ -1008,8 +1021,8 @@ bot.on('callback_query', async (query) => {
       state.actividadNombre = actividadNombres[factorActividad] || 'Moderado';
       state.step = 'config_objetivo';
 
-      bot.answerCallbackQuery(query.id);
-      bot.sendMessage(chatId, '🎯 ¿Cuál es tu objetivo?', {
+      await bot.answerCallbackQuery(query.id);
+      await bot.sendMessage(chatId, '🎯 ¿Cuál es tu objetivo?', {
         reply_markup: {
           inline_keyboard: [
             [{ text: '📉 Perder peso', callback_data: 'obj_deficit' }],
@@ -1027,11 +1040,11 @@ bot.on('callback_query', async (query) => {
     if (state && state.step === 'config_objetivo') {
       state.objetivo = data.replace('obj_', '');
 
-      bot.answerCallbackQuery(query.id);
+      await bot.answerCallbackQuery(query.id);
 
       if (state.objetivo === 'mantener') {
         state.step = 'config_plan_finde';
-        bot.sendMessage(chatId, '📅 ¿Quieres un plan de fin de semana?\n\n_Redistribuye calorías: comes un poco menos de L-V y un poco más los S-D, manteniendo el mismo total semanal._', {
+        await bot.sendMessage(chatId, '📅 ¿Quieres un plan de fin de semana?\n\n_Redistribuye calorías: comes un poco menos de L-V y un poco más los S-D, manteniendo el mismo total semanal._', {
           parse_mode: 'Markdown',
           reply_markup: {
             inline_keyboard: [
@@ -1042,7 +1055,7 @@ bot.on('callback_query', async (query) => {
         });
       } else {
         state.step = 'config_peso_meta';
-        bot.sendMessage(chatId, '🎯 ¿Cuál es tu peso objetivo en kg?');
+        await bot.sendMessage(chatId, '🎯 ¿Cuál es tu peso objetivo en kg?');
       }
     }
   }
@@ -1058,8 +1071,8 @@ bot.on('callback_query', async (query) => {
       state.nivelDeficit = nivelNombres[deficitKcal] || 'moderado';
 
       state.step = 'config_plan_finde';
-      bot.answerCallbackQuery(query.id);
-      bot.sendMessage(chatId, '📅 ¿Quieres un plan de fin de semana?\n\n_Redistribuye calorías: comes un poco menos de L-V y un poco más los S-D, manteniendo el mismo total semanal._', {
+      await bot.answerCallbackQuery(query.id);
+      await bot.sendMessage(chatId, '📅 ¿Quieres un plan de fin de semana?\n\n_Redistribuye calorías: comes un poco menos de L-V y un poco más los S-D, manteniendo el mismo total semanal._', {
         parse_mode: 'Markdown',
         reply_markup: {
           inline_keyboard: [
@@ -1079,11 +1092,11 @@ bot.on('callback_query', async (query) => {
       state.superavitKcal = superavitKcal;
 
       const nivelNombres = { 250: 'lean bulk', 400: 'moderado', 600: 'agresivo' };
-      state.nivelDeficit = nivelNombres[superavitKcal] || 'moderado';
+      state.nivelSuperavit = nivelNombres[superavitKcal] || 'moderado';
 
       state.step = 'config_plan_finde';
-      bot.answerCallbackQuery(query.id);
-      bot.sendMessage(chatId, '📅 ¿Quieres un plan de fin de semana?\n\n_Redistribuye calorías: comes un poco menos de L-V y un poco más los S-D, manteniendo el mismo total semanal._', {
+      await bot.answerCallbackQuery(query.id);
+      await bot.sendMessage(chatId, '📅 ¿Quieres un plan de fin de semana?\n\n_Redistribuye calorías: comes un poco menos de L-V y un poco más los S-D, manteniendo el mismo total semanal._', {
         parse_mode: 'Markdown',
         reply_markup: {
           inline_keyboard: [
@@ -1192,7 +1205,7 @@ bot.on('callback_query', async (query) => {
       if (state.objetivo === 'deficit') {
         deficitTexto = `\n📉 Déficit: -${state.deficitKcal} kcal/día (${state.nivelDeficit})`;
       } else if (state.objetivo === 'superavit') {
-        deficitTexto = `\n📈 Superávit: +${state.superavitKcal} kcal/día (${state.nivelDeficit})`;
+        deficitTexto = `\n📈 Superávit: +${state.superavitKcal} kcal/día (${state.nivelSuperavit})`;
       }
 
       let pesoMetaTexto = state.pesoMeta ? ` → Meta: ${state.pesoMeta} kg` : '';
