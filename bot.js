@@ -23,14 +23,22 @@ mongoose.connect(process.env.MONGODB_URI)
 
 function getStartOfDay(date = new Date()) {
   const d = new Date(date);
-  d.setHours(0, 0, 0, 0);
-  return d;
+  // Convert to Argentina timezone (UTC-3)
+  const offset = -3 * 60 * 60 * 1000; // -3 hours in milliseconds
+  const localTime = new Date(d.getTime() + d.getTimezoneOffset() * 60000 + offset);
+  localTime.setHours(0, 0, 0, 0);
+  // Convert back to UTC for MongoDB query
+  return new Date(localTime.getTime() - offset - d.getTimezoneOffset() * 60000);
 }
 
 function getEndOfDay(date = new Date()) {
   const d = new Date(date);
-  d.setHours(23, 59, 59, 999);
-  return d;
+  // Convert to Argentina timezone (UTC-3)
+  const offset = -3 * 60 * 60 * 1000; // -3 hours in milliseconds
+  const localTime = new Date(d.getTime() + d.getTimezoneOffset() * 60000 + offset);
+  localTime.setHours(23, 59, 59, 999);
+  // Convert back to UTC for MongoDB query
+  return new Date(localTime.getTime() - offset - d.getTimezoneOffset() * 60000);
 }
 
 function getMetaDelDia(user) {
