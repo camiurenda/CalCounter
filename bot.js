@@ -195,6 +195,7 @@ Comandos disponibles:
 /macros - Ver macros del día
 /resumen - Balance completo del día
 /consultar - Consultar kcal sin registrar
+/sugerencia - Sugerencia de comida con IA
 /historial - Ver días anteriores
 /semana - Estadísticas semanales con gráfico
 /metas - Ver/configurar metas
@@ -465,12 +466,78 @@ bot.onText(/\/peso (.+)/, async (msg, match) => {
   await Weight.create({ telegramId: chatId, peso });
   await User.findOneAndUpdate({ telegramId: chatId }, { peso }, { upsert: true });
 
-  const weights = await Weight.find({ telegramId: chatId }).sort({ fecha: -1 }).limit(5);
-  let historial = weights.map(w => 
-    `${w.fecha.toLocaleDateString('es-ES')}: ${w.peso} kg`
-  ).join('\n');
+  const weights = await Weight.find({ telegramId: chatId }).sort({ fecha: 1 }).limit(30);
 
-  await bot.sendMessage(chatId, `✅ Peso registrado: ${peso} kg\n\n📊 Últimos registros:\n${historial}`);
+  if (weights.length >= 2) {
+    try {
+      const labels = weights.map(w => w.fecha.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }));
+      const dataPesos = weights.map(w => w.peso);
+
+      const chart = new QuickChart();
+      chart.setConfig({
+        type: 'line',
+        data: {
+          labels,
+          datasets: [{
+            label: 'Peso (kg)',
+            data: dataPesos,
+            borderColor: 'rgba(75, 192, 192, 1)',
+            backgroundColor: 'rgba(75, 192, 192, 0.2)',
+            fill: true,
+            tension: 0.3,
+            pointRadius: 4,
+            pointBackgroundColor: 'rgba(75, 192, 192, 1)'
+          }]
+        },
+        options: {
+          plugins: {
+            title: {
+              display: true,
+              text: 'Progreso de Peso'
+            },
+            legend: {
+              display: false
+            }
+          },
+          scales: {
+            y: {
+              title: {
+                display: true,
+                text: 'Peso (kg)'
+              }
+            }
+          }
+        }
+      });
+      chart.setWidth(800);
+      chart.setHeight(400);
+      chart.setBackgroundColor('white');
+
+      const chartUrl = await chart.getShortUrl();
+      console.log('Chart URL generada:', chartUrl);
+
+      const pesoInicial = dataPesos[0];
+      const pesoActual = dataPesos[dataPesos.length - 1];
+      const diferencia = pesoActual - pesoInicial;
+      const tendencia = diferencia < 0 ? '📉' : diferencia > 0 ? '📈' : '➡️';
+
+      await bot.sendPhoto(chatId, chartUrl, {
+        caption: `✅ Peso registrado: ${peso} kg\n\n📊 *Progreso:*\n${tendencia} Cambio: ${diferencia > 0 ? '+' : ''}${diferencia.toFixed(1)} kg (${pesoInicial} → ${pesoActual})\n📝 Total registros: ${weights.length}`,
+        parse_mode: 'Markdown'
+      });
+    } catch (error) {
+      console.error('Error generando gráfico de peso:', error);
+      let historial = weights.slice(-5).reverse().map(w =>
+        `${w.fecha.toLocaleDateString('es-ES')}: ${w.peso} kg`
+      ).join('\n');
+      await bot.sendMessage(chatId, `✅ Peso registrado: ${peso} kg\n\n📊 Últimos registros:\n${historial}`);
+    }
+  } else {
+    let historial = weights.map(w =>
+      `${w.fecha.toLocaleDateString('es-ES')}: ${w.peso} kg`
+    ).join('\n');
+    await bot.sendMessage(chatId, `✅ Peso registrado: ${peso} kg\n\n📊 Últimos registros:\n${historial}`);
+  }
 });
 
 bot.onText(/\/ejercicio$/, async (msg) => {
@@ -542,6 +609,84 @@ bot.onText(/\/guardar/, async (msg) => {
     await bot.sendMessage(chatId, `⭐ Guardado como frecuente:\n${lastFood.nombre} (${lastFood.calorias} kcal)`);
   } else {
     await bot.sendMessage(chatId, '❌ No hay comidas registradas hoy para guardar.');
+  }
+});
+
+bot.onText(/\/sugerencia/, async (msg) => {
+  const chatId = msg.chat.id;
+
+  await bot.sendMessage(chatId, '🤔 Pensando sugerencias para ti...');
+
+  try {
+    const stats = await getTodayStats(chatId);
+    const user = await User.findOne({ telegramId: chatId });
+    const meta = getMetaDelDia(user);
+    const restantes = meta - stats.caloriasNetas;
+
+    if (restantes <= 0) {
+      await bot.sendMessage(chatId, '⚠️ Ya alcanzaste tu meta de calorías por hoy. ¡Buen trabajo! 🎉');
+      return;
+    }
+
+    const frecuentes = await FrequentMeal.find({ telegramId: chatId }).limit(10);
+
+    const comidasFrecuentesText = frecuentes.length > 0
+      ? frecuentes.map(f => `- ${f.nombre}: ${f.calorias} kcal`).join('\n')
+      : 'No tienes comidas frecuentes guardadas.';
+
+    const prompt = `Eres un nutricionista experto. El usuario tiene ${restantes} kcal restantes para completar su meta diaria.
+
+Sus comidas frecuentes son:
+${comidasFrecuentesText}
+
+Proporciona UNA sugerencia de comida (desayuno, almuerzo, merienda o cena según corresponda a la hora del día en Argentina, UTC-3).
+
+La sugerencia debe:
+1. Caber en las ${restantes} kcal restantes
+2. Preferiblemente usar ingredientes similares a sus comidas frecuentes
+3. Incluir porciones específicas
+
+Responde SOLO con un JSON válido con este formato exacto (sin markdown, sin backticks, solo el JSON raw):
+{"nombre": "nombre del plato", "tipo": "desayuno/almuerzo/merienda/cena", "calorias": 0, "proteinas": 0, "carbohidratos": 0, "grasas": 0, "ingredientes": ["ingrediente 1"], "porcion": "descripción", "consejo": "texto corto"}`;
+
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+
+    let responseText = response.text().trim();
+    
+    // Limpiar posibles markdown que Gemini a veces agrega
+    responseText = responseText.replace(/^```[\w]*\n?/gm, '').replace(/```\n?$/gm, '').trim();
+    responseText = responseText.replace(/^json\n?/i, '').trim();
+    
+    console.log('Respuesta cruda de Gemini:', responseText);
+    
+    const sugerencia = JSON.parse(responseText);
+
+    const esFrecuente = frecuentes.some(f =>
+      f.nombre.toLowerCase().includes(sugerencia.nombre.toLowerCase()) ||
+      sugerencia.nombre.toLowerCase().includes(f.nombre.toLowerCase())
+    );
+
+    const frecuenteBadge = esFrecuente ? ' ⭐ (basado en tus favoritas)' : '';
+
+    await bot.sendMessage(chatId, `💡 *Sugerencia para tu ${sugerencia.tipo}*${frecuenteBadge}
+
+🍽️ *${sugerencia.nombre}*
+🔥 ${sugerencia.calorias} kcal | 🥩 ${sugerencia.proteinas}g prot | 🍞 ${sugerencia.carbohidratos}g carb | 🧈 ${sugerencia.grasas}g grasa
+
+📋 *Ingredientes:*
+${sugerencia.ingredientes.map(i => `  • ${i}`).join('\n')}
+
+📏 *Porción:* ${sugerencia.porcion}
+
+💬 ${sugerencia.consejo}
+
+${sugerencia.calorias <= restantes ? `✅ Quedarían ${restantes - sugerencia.calorias} kcal disponibles` : '⚠️ Esta sugerencia excede un poco tus calorías restantes'}`, { parse_mode: 'Markdown' });
+
+  } catch (error) {
+    console.error('Error en sugerencia:', error);
+    await bot.sendMessage(chatId, '❌ No pude generar una sugerencia ahora. Intenta más tarde.');
   }
 });
 
