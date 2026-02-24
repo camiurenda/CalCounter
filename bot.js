@@ -466,77 +466,83 @@ bot.onText(/\/peso (.+)/, async (msg, match) => {
   await Weight.create({ telegramId: chatId, peso });
   await User.findOneAndUpdate({ telegramId: chatId }, { peso }, { upsert: true });
 
+  const weights = await Weight.find({ telegramId: chatId }).sort({ fecha: -1 }).limit(5);
+  let historial = weights.map(w =>
+    `${w.fecha.toLocaleDateString('es-ES')}: ${w.peso} kg`
+  ).join('\n');
+
+  await bot.sendMessage(chatId, `✅ Peso registrado: ${peso} kg\n\n📊 Últimos registros:\n${historial}\n\n💡 Usa /progreso para ver tu gráfico de evolución`);
+});
+
+bot.onText(/\/progreso/, async (msg) => {
+  const chatId = msg.chat.id;
+
   const weights = await Weight.find({ telegramId: chatId }).sort({ fecha: 1 }).limit(30);
 
-  if (weights.length >= 2) {
-    try {
-      const labels = weights.map(w => w.fecha.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }));
-      const dataPesos = weights.map(w => w.peso);
+  if (weights.length < 2) {
+    await bot.sendMessage(chatId, '📊 Necesitas al menos 2 registros de peso para ver tu progreso.\n\nUsa /peso para registrar tu peso.');
+    return;
+  }
 
-      const chart = new QuickChart();
-      chart.setConfig({
-        type: 'line',
-        data: {
-          labels,
-          datasets: [{
-            label: 'Peso (kg)',
-            data: dataPesos,
-            borderColor: 'rgba(75, 192, 192, 1)',
-            backgroundColor: 'rgba(75, 192, 192, 0.2)',
-            fill: true,
-            tension: 0.3,
-            pointRadius: 4,
-            pointBackgroundColor: 'rgba(75, 192, 192, 1)'
-          }]
+  try {
+    const labels = weights.map(w => w.fecha.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }));
+    const dataPesos = weights.map(w => w.peso);
+
+    const chart = new QuickChart();
+    chart.setConfig({
+      type: 'line',
+      data: {
+        labels,
+        datasets: [{
+          label: 'Peso (kg)',
+          data: dataPesos,
+          borderColor: 'rgba(75, 192, 192, 1)',
+          backgroundColor: 'rgba(75, 192, 192, 0.2)',
+          fill: true,
+          tension: 0.3,
+          pointRadius: 4,
+          pointBackgroundColor: 'rgba(75, 192, 192, 1)'
+        }]
+      },
+      options: {
+        plugins: {
+          title: {
+            display: true,
+            text: 'Progreso de Peso'
+          },
+          legend: {
+            display: false
+          }
         },
-        options: {
-          plugins: {
+        scales: {
+          y: {
             title: {
               display: true,
-              text: 'Progreso de Peso'
-            },
-            legend: {
-              display: false
-            }
-          },
-          scales: {
-            y: {
-              title: {
-                display: true,
-                text: 'Peso (kg)'
-              }
+              text: 'Peso (kg)'
             }
           }
         }
-      });
-      chart.setWidth(800);
-      chart.setHeight(400);
-      chart.setBackgroundColor('white');
+      }
+    });
+    chart.setWidth(800);
+    chart.setHeight(400);
+    chart.setBackgroundColor('white');
 
-      const chartUrl = await chart.getShortUrl();
-      console.log('Chart URL generada:', chartUrl);
+    const chartUrl = await chart.getShortUrl();
+    console.log('Chart URL generada:', chartUrl);
 
-      const pesoInicial = dataPesos[0];
-      const pesoActual = dataPesos[dataPesos.length - 1];
-      const diferencia = pesoActual - pesoInicial;
-      const tendencia = diferencia < 0 ? '📉' : diferencia > 0 ? '📈' : '➡️';
+    const pesoInicial = dataPesos[0];
+    const pesoActual = dataPesos[dataPesos.length - 1];
+    const diferencia = pesoActual - pesoInicial;
+    const tendencia = diferencia < 0 ? '📉 Bajando' : diferencia > 0 ? '📈 Subiendo' : '➡️ Estable';
 
-      await bot.sendPhoto(chatId, chartUrl, {
-        caption: `✅ Peso registrado: ${peso} kg\n\n📊 *Progreso:*\n${tendencia} Cambio: ${diferencia > 0 ? '+' : ''}${diferencia.toFixed(1)} kg (${pesoInicial} → ${pesoActual})\n📝 Total registros: ${weights.length}`,
-        parse_mode: 'Markdown'
-      });
-    } catch (error) {
-      console.error('Error generando gráfico de peso:', error);
-      let historial = weights.slice(-5).reverse().map(w =>
-        `${w.fecha.toLocaleDateString('es-ES')}: ${w.peso} kg`
-      ).join('\n');
-      await bot.sendMessage(chatId, `✅ Peso registrado: ${peso} kg\n\n📊 Últimos registros:\n${historial}`);
-    }
-  } else {
-    let historial = weights.map(w =>
-      `${w.fecha.toLocaleDateString('es-ES')}: ${w.peso} kg`
-    ).join('\n');
-    await bot.sendMessage(chatId, `✅ Peso registrado: ${peso} kg\n\n📊 Últimos registros:\n${historial}`);
+    await bot.sendPhoto(chatId, chartUrl, {
+      caption: `📊 *Tu progreso de peso*\n\n⚖️ Peso inicial: ${pesoInicial} kg\n⚖️ Peso actual: ${pesoActual} kg\n${tendencia}: ${diferencia > 0 ? '+' : ''}${diferencia.toFixed(1)} kg\n📝 Total registros: ${weights.length}`,
+      parse_mode: 'Markdown'
+    });
+  } catch (error) {
+    console.error('Error generando gráfico de peso:', error);
+    await bot.sendMessage(chatId, '❌ Error al generar el gráfico. Intenta de nuevo.');
   }
 });
 
